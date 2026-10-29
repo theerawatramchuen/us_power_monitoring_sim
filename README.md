@@ -6,6 +6,7 @@ current waveforms, derives **power = V × I (positive only)**, extracts peak
 envelopes, checks per-time-range **power** control limits, raises alarms, and
 persists the control panel. This document is for developers extending it
 toward a real DSO / DAQ-connected instrument.
+<img width="890" height="2011" alt="image" src="https://github.com/user-attachments/assets/993fa0b1-4562-4599-93e8-81c06a0a3fc0" />
 
 ## 1. What this is today
 
