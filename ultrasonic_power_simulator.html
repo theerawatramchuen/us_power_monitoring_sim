@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultra Sonic Power Monitoring Simulator — UTAC AUTOMATION</title>
+<style>
+  :root{
+    --bg-deep:#0d1117;
+    --bg-panel:#151b23;
+    --bg-panel-2:#1b232e;
+    --bg-inset:#0f141b;
+    --line:#26313d;
+    --line-soft:#1e2833;
+    --power:#ffb020;
+    --volt:#b794f4;
+    --curr:#4fa8ff;
+    --imp:#4fd1c5;
+    --limit:#ff4d4f;
+    --limit-soft:rgba(255,77,79,0.14);
+    --ok:#3ddc97;
+    --cyan:#4fd1c5;
+    --text:#e8edf3;
+    --text-mute:#7f8ea1;
+    --text-dim:#54606e;
+    --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+    --sans:'Inter',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg-deep);color:var(--text);font-family:var(--sans);}
+  body{padding:18px 22px 40px;}
+
+  /* header */
+  .rig-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .rig-title{font-family:var(--mono);font-size:20px;letter-spacing:1.5px;font-weight:600;}
+  .rig-title span{color:var(--power);}
+  .rig-sub{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--text-mute);margin-top:4px;text-transform:uppercase;}
+  .status-cluster{display:flex;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;flex-wrap:wrap;}
+  .lamp{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:3px;background:var(--bg-panel);border:1px solid var(--line);}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);}
+  .dot.on-ok{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .dot.on-run{background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 1.4s infinite;}
+  .dot.on-alarm{background:var(--limit);box-shadow:0 0 10px var(--limit);animation:pulse .7s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  /* stages */
+  .stage{background:var(--bg-panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px 16px;margin-bottom:14px;}
+  .stage-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+  .stage-label{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-mute);text-transform:uppercase;}
+  .stage-label b{color:var(--power);font-weight:600;}
+  .file-label{font-family:var(--mono);font-size:11px;color:var(--text-mute);}
+
+  .alarm-banner{font-family:var(--mono);font-size:12px;padding:8px 12px;border-radius:4px;margin-bottom:10px;background:var(--bg-inset);border:1px solid var(--line-soft);color:var(--text-dim);display:flex;align-items:center;gap:8px;transition:all .15s;}
+  .alarm-banner.active{background:var(--limit-soft);border-color:var(--limit);color:#ffb3b4;}
+  .alarm-banner .tag{font-weight:700;letter-spacing:1px;white-space:nowrap;}
+
+  .legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--text-mute);margin-bottom:8px;}
+  .legend .swatch{display:inline-flex;align-items:center;gap:5px;}
+  .legend .sw{width:14px;height:2px;display:inline-block;}
+  .sw-raw{background:#9aa7b5;} .sw-pow{background:var(--power);} .sw-lim{background:var(--limit);}
+
+  canvas.scope{width:100%;display:block;border-radius:4px;background:var(--bg-inset);cursor:grab;}
+  canvas.scope:active{cursor:grabbing;}
+  #cvP{height:340px;}
+  canvas.minor{height:170px;}
+
+  .minor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px;}
+  @media (max-width:900px){ .minor-grid{grid-template-columns:1fr;} }
+  .minor-card{background:var(--bg-panel-2);border:1px solid var(--line-soft);border-radius:5px;padding:8px 10px 10px;}
+  .minor-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+  .minor-head .nm{color:var(--text-mute);}
+  .minor-head .nm i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
+  .minor-head .st{color:var(--text);}
+
+  .scope-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--text-mute);}
+  .toolbar-group{display:flex;align-items:center;gap:6px;background:var(--bg-inset);border:1px solid var(--line-soft);border-radius:4px;padding:5px 9px;}
+  .toolbar-group input[type=range]{width:120px;accent-color:var(--power);}
+  .toolbar-group button{background:var(--bg-panel-2);border:1px solid var(--line);color:var(--text);border-radius:3px;padding:3px 8px;cursor:pointer;font-family:var(--mono);font-size:11px;}
+  .toolbar-group button:hover{border-color:var(--power);color:var(--power);}
+  .toolbar-group label.chk{display:flex;align-items:center;gap:5px;cursor:pointer;}
+  .toolbar-group input[type=number].small{width:64px;background:var(--bg-inset);border:1px solid var(--line);color:var(--text);border-radius:3px;padding:3px 6px;font-family:var(--mono);font-size:11px;}
+
+  /* control panel */
+  .tabs{display:flex;gap:2px;}
+  .tab-btn{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--bg-inset);color:var(--text-mute);border:1px solid var(--line);border-bottom:none;padding:9px 16px;border-radius:5px 5px 0 0;cursor:pointer;}
+  .tab-btn.active{background:var(--bg-panel-2);color:var(--power);border-color:var(--power);}
+  .tab-panel{display:none;background:var(--bg-panel-2);border:1px solid var(--line);border-radius:0 5px 5px 5px;padding:16px;overflow-x:auto;}
+  .tab-panel.active{display:block;}
+
+  table.grid-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;}
+  table.grid-table th{text-align:left;color:var(--text-mute);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);text-transform:uppercase;font-size:10px;letter-spacing:1px;white-space:nowrap;}
+  table.grid-table td{padding:5px 8px;border-bottom:1px solid var(--line-soft);}
+  table.grid-table input[type=number]{width:92px;background:var(--bg-inset);border:1px solid var(--line);color:var(--text);border-radius:3px;padding:5px 6px;font-family:var(--mono);font-size:12px;}
+  table.grid-table input[type=number]:focus{outline:none;border-color:var(--power);}
+  .row-id{color:var(--text-dim);}
+  .del-btn{background:none;border:1px solid var(--line);color:var(--text-mute);border-radius:3px;cursor:pointer;padding:4px 8px;font-family:var(--mono);}
+  .del-btn:hover{border-color:var(--limit);color:var(--limit);}
+  .add-row-btn{margin-top:10px;background:var(--bg-inset);border:1px dashed var(--line);color:var(--power);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.5px;}
+  .add-row-btn:hover{border-color:var(--power);}
+
+  .field-row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-family:var(--mono);font-size:10px;color:var(--text-mute);letter-spacing:1px;text-transform:uppercase;}
+  .field input[type=number],.field input[type=file],.field select{background:var(--bg-inset);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:7px 9px;font-family:var(--mono);font-size:12px;width:190px;}
+  .field input[type=number]{width:140px;}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--power);}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--text-mute);line-height:1.6;}
+
+  .run-bar{display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .btn{font-family:var(--mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:600;border-radius:4px;padding:10px 20px;cursor:pointer;border:1px solid var(--line);}
+  .btn-start{background:var(--ok);color:#0a1a12;border-color:var(--ok);}
+  .btn-stop{background:var(--limit);color:#2a0a0a;border-color:var(--limit);}
+  .btn-save{background:var(--cyan);color:#062023;border-color:var(--cyan);}
+  .btn-reset{background:var(--bg-inset);color:var(--text-mute);}
+  .btn-reset:hover{color:var(--text);border-color:var(--text-mute);}
+  .btn:hover{filter:brightness(1.08);}
+  .btn[disabled]{opacity:.35;cursor:not-allowed;}
+
+  /* log */
+  .log-panel{max-height:170px;overflow-y:auto;background:var(--bg-inset);border:1px solid var(--line-soft);border-radius:4px;font-family:var(--mono);font-size:11px;}
+  .log-row{padding:6px 10px;border-bottom:1px solid var(--line-soft);display:flex;gap:14px;color:var(--text-mute);}
+  .log-row.high{color:#ffb3b4;} .log-row.low{color:#ffd08a;}
+  .log-empty{padding:14px;text-align:center;color:var(--text-dim);}
+  .log-row .t{color:var(--text-dim);width:70px;flex-shrink:0;}
+  .log-row .tag{width:48px;flex-shrink:0;font-weight:700;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div class="rig-header">
+  <div>
+    <div class="rig-title">ULTRA <span>SONIC</span> POWER MONITORING SIMULATOR</div>
+    <div class="rig-sub">UTAC AUTOMATION · Process Instrumentation Bench</div>
+  </div>
+  <div class="status-cluster">
+    <div class="lamp"><div class="dot" id="lampRun"></div><span id="lampRunTxt">STOPPED</span></div>
+    <div class="lamp"><div class="dot" id="lampAlarm"></div><span id="lampAlarmTxt">IDLE</span></div>
+    <div class="lamp"><div class="dot on-ok"></div><span id="lampClock">--:--:--</span></div>
+  </div>
+</div>
+
+<!-- ============ TOP: WAVEFORMS ============ -->
+<div class="stage">
+  <div class="stage-head">
+    <div class="stage-label"><b>Ultrasonic Power</b> · P = V × I (positive only) · peak <span id="statP" style="color:var(--text)">—</span></div>
+    <div class="file-label">Base capture: <span id="fileMeta">synthetic 1000-pt burst (default)</span></div>
+  </div>
+
+  <div class="alarm-banner" id="alarmBanner"><span class="tag" id="alarmTag">● IDLE</span><span id="alarmMsg">Simulator stopped — power limits are checked while it is running.</span></div>
+
+  <div class="legend">
+    <span class="swatch"><span class="sw sw-raw"></span> Raw power</span>
+    <span class="swatch"><span class="sw sw-pow"></span> Positive peak (checked against limits)</span>
+    <span class="swatch"><span class="sw sw-lim"></span> Max / min limits</span>
+  </div>
+
+  <canvas id="cvP" class="scope"></canvas>
+
+  <div class="minor-grid">
+    <div class="minor-card">
+      <div class="minor-head"><span class="nm"><i style="background:var(--volt)"></i>Voltage (V)</span><span class="st" id="statV">—</span></div>
+      <canvas id="cvV" class="scope minor"></canvas>
+    </div>
+    <div class="minor-card">
+      <div class="minor-head"><span class="nm"><i style="background:var(--curr)"></i>Current (A)</span><span class="st" id="statI">—</span></div>
+      <canvas id="cvI" class="scope minor"></canvas>
+    </div>
+    <div class="minor-card">
+      <div class="minor-head"><span class="nm"><i style="background:var(--imp)"></i>Impedance (Ω)</span><span class="st" id="statZ">—</span></div>
+      <canvas id="cvZ" class="scope minor"></canvas>
+    </div>
+  </div>
+
+  <div class="scope-toolbar">
+    <div class="toolbar-group">
+      <span>ZOOM</span>
+      <input type="range" id="zoomSlider" min="5" max="100" value="100">
+      <span id="zoomVal">100%</span>
+    </div>
+    <div class="toolbar-group">
+      <span>PAN</span>
+      <button id="panLeft">◀</button>
+      <input type="range" id="panSlider" min="0" max="100" value="0">
+      <button id="panRight">▶</button>
+    </div>
+    <div class="toolbar-group"><button id="zoomResetBtn">RESET VIEW</button></div>
+    <div class="toolbar-group">
+      <span>ENVELOPE WINDOW (N)</span>
+      <input type="number" class="small" id="envWindow" value="50" min="1" step="1">
+    </div>
+    <div class="toolbar-group">
+      <label class="chk" for="showRawChk"><input type="checkbox" id="showRawChk"> Show raw traces</label>
+    </div>
+    <div class="toolbar-group"><span>scroll = zoom · drag = pan (all four charts)</span></div>
+  </div>
+</div>
+
+<!-- ============ BOTTOM: CONTROL PANEL ============ -->
+<div class="stage">
+  <div class="stage-head"><div class="stage-label">Control Panel — based on ultrasonic power</div></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="limits">Power Limits</button>
+    <button class="tab-btn" data-tab="sim">Waveform Simulation</button>
+    <button class="tab-btn" data-tab="load">Base Capture</button>
+  </div>
+
+  <!-- Power limits -->
+  <div class="tab-panel active" id="tab-limits">
+    <table class="grid-table">
+      <thead><tr><th>#</th><th>Start (s)</th><th>End (s)</th><th>Max limit (W)</th><th>Min limit (W)</th><th></th></tr></thead>
+      <tbody id="limitsBody"></tbody>
+    </table>
+    <button class="add-row-btn" id="addLimitRow">+ Add limit range</button>
+  </div>
+
+  <!-- Simulation -->
+  <div class="tab-panel" id="tab-sim">
+    <table class="grid-table">
+      <thead><tr><th>#</th><th>Start (s)</th><th>End (s)</th><th>Current ×min</th><th>Current ×max</th><th>Voltage ×min</th><th>Voltage ×max</th><th></th></tr></thead>
+      <tbody id="simBody"></tbody>
+    </table>
+    <button class="add-row-btn" id="addSimRow">+ Add simulation range</button>
+
+    <div class="field-row" style="margin-top:16px;">
+      <div class="field">
+        <label>Update interval (ms)</label>
+        <input type="number" id="updateInterval" value="500" min="50" step="50">
+      </div>
+      <div class="field">
+        <label>Point noise (± ×)</label>
+        <input type="number" id="noiseAmt" value="0.02" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="hint">Each tick draws one random factor per range for current and one for voltage, then power = V × I is recomputed from the amplified waveforms.</div>
+  </div>
+
+  <!-- Base capture -->
+  <div class="tab-panel" id="tab-load">
+    <div class="field-row">
+      <div class="field">
+        <label>Current CSV (TIME, CH1)</label>
+        <input type="file" id="csvFileI" accept=".csv">
+      </div>
+      <div class="field">
+        <label>Voltage CSV (TIME, CH2 → CH1)</label>
+        <input type="file" id="csvFileV" accept=".csv">
+      </div>
+      <div class="field">
+        <label>Current scale (A per unit)</label>
+        <input type="number" id="scaleI" value="0.1" step="0.01" min="0">
+      </div>
+      <div class="field">
+        <label>Voltage scale (V per unit)</label>
+        <input type="number" id="scaleV" value="1" step="0.1" min="0">
+      </div>
+      <div class="field">
+        <label>Negative power</label>
+        <select id="negMode">
+          <option value="clamp">Clamp to 0</option>
+          <option value="abs">Absolute value</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn btn-reset" id="genDefaultBtn">Regenerate synthetic burst</button>
+      </div>
+    </div>
+    <div class="hint" id="loadStatus">Using default synthetic ultrasonic bonding burst (1000 points, 0–0.100 s). If one DSO export holds both channels (TIME, CH1, CH2), load the same file into both slots. The voltage waveform is resampled onto the current time base if the two files differ.</div>
+  </div>
+
+  <div class="run-bar">
+    <button class="btn btn-start" id="startBtn">▶ Start simulator</button>
+    <button class="btn btn-stop" id="stopBtn" disabled>■ Stop</button>
+    <button class="btn btn-reset" id="resetBtn">↺ Reset waveform</button>
+    <button class="btn btn-save" id="saveSettingsBtn">💾 Save panel settings</button>
+    <button class="btn btn-reset" id="clearSettingsBtn">Clear saved settings</button>
+    <span class="file-label" id="settingsStatus">Checking for saved settings…</span>
+  </div>
+</div>
+
+<!-- ============ ALARM LOG ============ -->
+<div class="stage">
+  <div class="stage-head">
+    <div class="stage-label">Power Failure Log</div>
+    <div class="file-label">Events logged: <span id="alarmCount">0</span></div>
+  </div>
+  <div class="log-panel" id="logPanel"><div class="log-empty">No violations recorded.</div></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= constants & storage ================= */
+  const SETTINGS_KEY = 'utac-ultrasonic-power-sim-panel-settings';
+  const IDB_NAME = 'utac_ultrasonic_power_sim_db';
+  const IDB_STORE = 'kv';
+  const DEFAULT_I_SCALE = 0.1;   // actual current (A) = CH1 column * 0.1 (matches plot_waveform scripts)
+  const DEFAULT_V_SCALE = 1.0;   // actual voltage (V) = voltage column * 1.0 (adjust to your probe)
+
+  function idbOpen(){
+    return new Promise((resolve, reject)=>{
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = ()=>resolve(req.result);
+      req.onerror = ()=>reject(req.error);
+    });
+  }
+  async function idbSet(key, val){
+    const db = await idbOpen();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror = ()=>reject(tx.error);
+    });
+  }
+  async function idbGet(key){
+    const db = await idbOpen();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = ()=>resolve(req.result);
+      req.onerror = ()=>reject(req.error);
+    });
+  }
+  async function idbDelete(key){
+    const db = await idbOpen();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror = ()=>reject(tx.error);
+    });
+  }
+  async function saveConfig(cfg){
+    const json = JSON.stringify(cfg);
+    if(window.storage){
+      try{ await window.storage.set(SETTINGS_KEY, json, false); return 'cloud'; }catch(e){ /* fall through */ }
+    }
+    try{ await idbSet(SETTINGS_KEY, json); return 'local'; }catch(e){ return 'none'; }
+  }
+  async function loadConfigRaw(){
+    if(window.storage){
+      try{
+        const res = await window.storage.get(SETTINGS_KEY, false);
+        if(res && res.value) return res.value;
+      }catch(e){ /* not found */ }
+    }
+    try{ const v = await idbGet(SETTINGS_KEY); if(v) return v; }catch(e){ /* ignore */ }
+    return null;
+  }
+  async function clearConfig(){
+    if(window.storage){ try{ await window.storage.delete(SETTINGS_KEY, false); }catch(e){} }
+    try{ await idbDelete(SETTINGS_KEY); }catch(e){}
+  }
+
+  /* ================= state ================= */
+  let srcI = {t:[], c:[]};      // current source capture (raw column values) — defines the time base
+  let srcV = {t:[], c:[]};      // voltage source capture (raw column values)
+  let baseTime = [];            // seconds
+  let rawI = [], rawV = [];     // raw columns on the common time base
+  let iScale = DEFAULT_I_SCALE, vScale = DEFAULT_V_SCALE;
+  let baseI = [], baseV = [];   // scaled base waveforms (A, V)
+  let liveI = [], liveV = [];   // simulated / live waveforms (A, V)
+  let liveP = [];               // power = V × I, positive only (W)
+  let posPeakP = [];            // rolling positive peak of power — checked against limits
+  let posPeakV = [], negPeakV = [], posPeakI = [], negPeakI = [];
+  let zImp = [];                // impedance from peak envelopes (Ω); NaN where undefined
+  let envWindow = 50, showRaw = false, negMode = 'clamp';
+
+  let running = false, intervalHandle = null;
+  let alarmLog = [];            // newest first, capped
+  let currentAlarms = [];       // violations found in the latest evaluation
+  let limitRows = [];           // {id,start,end,max,min}      (W)
+  let simRows = [];             // {id,start,end,iMin,iMax,vMin,vMax}
+  let rowSeq = 1;
+
+  const view = { xMin:0, xMax:0.1, fullMin:0, fullMax:0.1, zoomPct:100, panPct:0 };
+
+  const $ = id => document.getElementById(id);
+
+  /* ================= small numeric helpers ================= */
+  function arrMax(a){ let m=-Infinity; for(let i=0;i<a.length;i++){ if(a[i]>m) m=a[i]; } return m; }
+  function arrMin(a){ let m=Infinity;  for(let i=0;i<a.length;i++){ if(a[i]<m) m=a[i]; } return m; }
+  function rnd(a,b){ return a + Math.random()*(b-a); }
+
+  // Linear resample of (tSrc,ySrc) onto tDst; clamps outside the source range.
+  function resample(tSrc, ySrc, tDst){
+    const out = new Array(tDst.length);
+    const n = tSrc.length;
+    if(n === 0){ return out.fill(0); }
+    if(n === 1){ return out.fill(ySrc[0]); }
+    let j = 0;
+    for(let k=0;k<tDst.length;k++){
+      const t = tDst[k];
+      if(t <= tSrc[0]){ out[k] = ySrc[0]; continue; }
+      if(t >= tSrc[n-1]){ out[k] = ySrc[n-1]; continue; }
+      while(j < n-2 && tSrc[j+1] < t) j++;
+      const t0 = tSrc[j], t1 = tSrc[j+1];
+      const f = t1 > t0 ? (t - t0)/(t1 - t0) : 0;
+      out[k] = ySrc[j] + f*(ySrc[j+1]-ySrc[j]);
+    }
+    return out;
+  }
+
+  // Mirrors compute_peak_envelope() in plot_waveform_elvp.py:
+  // pandas rolling(window, center=True, min_periods=1).max()/.min()
+  function computePeakEnvelope(arr, window){
+    const n = arr.length;
+    const w = Math.max(1, Math.floor(window) || 1);
+    const offL = Math.floor((w-1)/2), offR = w - 1 - offL;
+    const pos = new Array(n), neg = new Array(n);
+    for(let i=0;i<n;i++){
+      const lo = Math.max(0, i-offL), hi = Math.min(n-1, i+offR);
+      let mx=-Infinity, mn=Infinity;
+      for(let j=lo;j<=hi;j++){ const v=arr[j]; if(v>mx) mx=v; if(v<mn) mn=v; }
+      pos[i]=mx; neg[i]=mn;
+    }
+    return {pos, neg};
+  }
+
+  function powerOf(v, i){
+    const p = v*i;
+    if(p >= 0) return p;
+    return negMode === 'abs' ? -p : 0;
+  }
+
+  /* ================= derived data ================= */
+  function recomputeDerived(){
+    const n = baseTime.length;
+    liveP = new Array(n);
+    for(let k=0;k<n;k++) liveP[k] = powerOf(liveV[k], liveI[k]);
+    posPeakP = computePeakEnvelope(liveP, envWindow).pos;
+    const eV = computePeakEnvelope(liveV, envWindow); posPeakV = eV.pos; negPeakV = eV.neg;
+    const eI = computePeakEnvelope(liveI, envWindow); posPeakI = eI.pos; negPeakI = eI.neg;
+
+    // Impedance from the positive-peak envelopes; undefined where either is near zero (ramps).
+    const vMax = arrMax(posPeakV), iMax = arrMax(posPeakI);
+    zImp = new Array(n);
+    for(let k=0;k<n;k++){
+      zImp[k] = (posPeakV[k] > 0.05*vMax && posPeakI[k] > 0.05*iMax) ? posPeakV[k]/posPeakI[k] : NaN;
+    }
+    updateStats();
+  }
+
+  function updateStats(){
+    const pk = arrMax(posPeakP), vk = arrMax(posPeakV), ik = arrMax(posPeakI);
+    let zs=0, zn=0; for(let k=0;k<zImp.length;k++){ if(Number.isFinite(zImp[k])){ zs+=zImp[k]; zn++; } }
+    $('statP').textContent = Number.isFinite(pk) ? pk.toFixed(3)+' W' : '—';
+    $('statV').textContent = Number.isFinite(vk) ? 'peak '+vk.toFixed(2)+' V' : '—';
+    $('statI').textContent = Number.isFinite(ik) ? 'peak '+ik.toFixed(4)+' A' : '—';
+    $('statZ').textContent = zn ? 'avg '+(zs/zn).toFixed(1)+' Ω' : '—';
+  }
+
+  function rebuildScaled(){
+    baseI = rawI.map(x => x*iScale);
+    baseV = rawV.map(x => x*vScale);
+    liveI = baseI.slice();
+    liveV = baseV.slice();
+    recomputeDerived();
+  }
+
+  function rebuildAll(meta){
+    baseTime = srcI.t.slice();
+    rawI = srcI.c.slice();
+    rawV = resample(srcV.t, srcV.c, baseTime);
+    view.fullMin = baseTime[0]; view.fullMax = baseTime[baseTime.length-1];
+    rebuildScaled();
+    resetView();
+    if(meta) $('fileMeta').textContent = meta;
+  }
+
+  /* ================= synthetic default capture ================= */
+  function genDefault(){
+    const n = 1000, t = [], ci = [], cv = [];
+    for(let k=0;k<n;k++){
+      const time = 0.1*k/(n-1);
+      t.push(time);
+      let sI, sV;
+      if(time < 0.02){ const x = time/0.02; sI = x; sV = Math.pow(x, 0.7); }
+      else if(time < 0.08){
+        const ph = 2*Math.PI*90*(time-0.02);
+        sI = 1 + 0.03*Math.sin(ph);
+        sV = 1 + 0.02*Math.sin(ph + 0.8);
+      } else { const x = Math.max(0, 1-(time-0.08)/0.02); sI = x; sV = Math.pow(x, 0.7); }
+      ci.push(1.5*sI*(1+(Math.random()-0.5)*0.02));   // raw 1.5 × 0.1 → 0.15 A
+      cv.push(20*sV*(1+(Math.random()-0.5)*0.02));    // 20 V
+    }
+    return {t, ci, cv};
+  }
+  function useDefault(metaText){
+    const g = genDefault();
+    srcI = {t:g.t, c:g.ci};
+    srcV = {t:g.t.slice(), c:g.cv};
+    rebuildAll(metaText);
+  }
+
+  /* ================= CSV parsing (mirrors load_waveform fallback) ================= */
+  function splitCells(line){ return line.split(',').map(s => s.replace(/"/g,'').trim().toUpperCase()); }
+
+  function parseCSV(text, candidates){
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    const headerIdx = lines.findIndex(l => {
+      const cells = splitCells(l);
+      return cells.includes('TIME') && candidates.some(c => cells.includes(c));
+    });
+    if(headerIdx === -1) throw new Error('Could not find TIME and ' + candidates.join('/') + ' columns in the CSV file.');
+    const header = splitCells(lines[headerIdx]);
+    const tIdx = header.indexOf('TIME');
+    const col = candidates.find(c => header.includes(c));
+    const cIdx = header.indexOf(col);
+    const t = [], c = [];
+    for(let k=headerIdx+1;k<lines.length;k++){
+      const parts = lines[k].split(',');
+      const tv = parseFloat(parts[tIdx]), cv = parseFloat(parts[cIdx]);
+      if(Number.isFinite(tv) && Number.isFinite(cv)){ t.push(tv); c.push(cv); }
+    }
+    if(t.length === 0) throw new Error('No numeric TIME/' + col + ' rows found.');
+    return {t, c, col};
+  }
+
+  function readFileText(file, cb){
+    const reader = new FileReader();
+    reader.onload = ev => cb(ev.target.result);
+    reader.readAsText(file);
+  }
+
+  $('csvFileI').addEventListener('change', function(e){
+    const file = e.target.files[0]; if(!file) return;
+    readFileText(file, text => {
+      try{
+        const r = parseCSV(text, ['CH1']);
+        srcI = {t:r.t, c:r.c};
+        stopSim();
+        rebuildAll('current: ' + file.name + ' (' + r.t.length + ' pts)');
+        $('loadStatus').textContent = 'Loaded current from ' + file.name + ' (' + r.c.length + ' points, column ' + r.col + ').';
+        render();
+      }catch(err){ $('loadStatus').textContent = 'Error (current CSV): ' + err.message; }
+    });
+  });
+  $('csvFileV').addEventListener('change', function(e){
+    const file = e.target.files[0]; if(!file) return;
+    readFileText(file, text => {
+      try{
+        const r = parseCSV(text, ['CH2','CH1']);
+        srcV = {t:r.t, c:r.c};
+        stopSim();
+        rebuildAll();
+        $('loadStatus').textContent = 'Loaded voltage from ' + file.name + ' (' + r.c.length + ' points, column ' + r.col + '), resampled onto the current time base.';
+        render();
+      }catch(err){ $('loadStatus').textContent = 'Error (voltage CSV): ' + err.message; }
+    });
+  });
+  $('genDefaultBtn').addEventListener('click', function(){
+    stopSim();
+    useDefault('synthetic 1000-pt burst (regenerated)');
+    $('loadStatus').textContent = 'Regenerated synthetic burst (current and voltage).';
+    render();
+  });
+
+  function onScaleChange(){
+    const i = parseFloat($('scaleI').value), v = parseFloat($('scaleV').value);
+    if(Number.isFinite(i) && i > 0) iScale = i;
+    if(Number.isFinite(v) && v > 0) vScale = v;
+    rebuildScaled();
+    if(running) tick(); else render();
+  }
+  $('scaleI').addEventListener('input', onScaleChange);
+  $('scaleV').addEventListener('input', onScaleChange);
+  $('negMode').addEventListener('change', function(){
+    negMode = this.value;
+    recomputeDerived();
+    if(running) evaluateAlarms(false);
+    render();
+  });
+
+  /* ================= grids ================= */
+  function addLimitRow(vals){
+    limitRows.push(Object.assign({id:rowSeq++, start:0, end:0.1, max:4, min:0}, vals||{}));
+    renderLimitsTable();
+  }
+  function addSimRow(vals){
+    simRows.push(Object.assign({id:rowSeq++, start:0, end:0.1, iMin:0.9, iMax:1.1, vMin:0.95, vMax:1.05}, vals||{}));
+    renderSimTable();
+  }
+  function onLimitsChanged(){
+    if(running) evaluateAlarms(false);
+    render();
+  }
+
+  function bindRowInputs(tr, row, onChange){
+    tr.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const v = parseFloat(inp.value);
+        if(!Number.isFinite(v)) return;      // ignore empty / partial entries
+        row[inp.dataset.field] = v;
+        onChange();
+      });
+    });
+  }
+
+  function renderLimitsTable(){
+    const body = $('limitsBody'); body.innerHTML = '';
+    limitRows.forEach((row, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="row-id">${idx+1}</td>
+        <td><input type="number" step="0.001" value="${row.start}" data-field="start"></td>
+        <td><input type="number" step="0.001" value="${row.end}" data-field="end"></td>
+        <td><input type="number" step="0.01" value="${row.max}" data-field="max"></td>
+        <td><input type="number" step="0.01" value="${row.min}" data-field="min"></td>
+        <td><button class="del-btn" title="Remove">✕</button></td>`;
+      bindRowInputs(tr, row, onLimitsChanged);
+      tr.querySelector('.del-btn').addEventListener('click', () => {
+        limitRows = limitRows.filter(r => r.id !== row.id);
+        renderLimitsTable(); onLimitsChanged();
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function renderSimTable(){
+    const body = $('simBody'); body.innerHTML = '';
+    simRows.forEach((row, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="row-id">${idx+1}</td>
+        <td><input type="number" step="0.001" value="${row.start}" data-field="start"></td>
+        <td><input type="number" step="0.001" value="${row.end}" data-field="end"></td>
+        <td><input type="number" step="0.01" value="${row.iMin}" data-field="iMin"></td>
+        <td><input type="number" step="0.01" value="${row.iMax}" data-field="iMax"></td>
+        <td><input type="number" step="0.01" value="${row.vMin}" data-field="vMin"></td>
+        <td><input type="number" step="0.01" value="${row.vMax}" data-field="vMax"></td>
+        <td><button class="del-btn" title="Remove">✕</button></td>`;
+      bindRowInputs(tr, row, () => {});   // picked up on the next tick
+      tr.querySelector('.del-btn').addEventListener('click', () => {
+        simRows = simRows.filter(r => r.id !== row.id);
+        renderSimTable();
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  $('addLimitRow').addEventListener('click', () => { addLimitRow(); onLimitsChanged(); });
+  $('addSimRow').addEventListener('click', () => addSimRow());
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      $('tab-'+btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  /* ================= settings: collect / apply / defaults ================= */
+  function applyDefaultRows(){
+    limitRows = []; simRows = [];
+    // Steady-state power is ≈ 3.0 W (20 V × 0.15 A).
+    addLimitRow({start:0.000, end:0.020, max:4.0, min:0});
+    addLimitRow({start:0.020, end:0.080, max:3.5, min:2.7});
+    addLimitRow({start:0.080, end:0.100, max:4.0, min:0});
+    addSimRow({start:0.000, end:0.020, iMin:0.90, iMax:1.10, vMin:0.95, vMax:1.05});
+    addSimRow({start:0.020, end:0.080, iMin:0.90, iMax:1.15, vMin:0.95, vMax:1.08});
+    addSimRow({start:0.080, end:0.100, iMin:0.90, iMax:1.10, vMin:0.95, vMax:1.05});
+    $('updateInterval').value = 500;
+    $('noiseAmt').value = 0.02;
+    envWindow = 50; $('envWindow').value = 50;
+    showRaw = false; $('showRawChk').checked = false;
+    iScale = DEFAULT_I_SCALE; vScale = DEFAULT_V_SCALE;
+    $('scaleI').value = iScale; $('scaleV').value = vScale;
+    negMode = 'clamp'; $('negMode').value = 'clamp';
+  }
+
+  function collectConfig(){
+    return {
+      version: 2,
+      limitRows: limitRows.map(r => Object.assign({}, r)),
+      simRows: simRows.map(r => Object.assign({}, r)),
+      updateInterval: parseFloat($('updateInterval').value) || 500,
+      noiseAmt: parseFloat($('noiseAmt').value) || 0,
+      envWindow, showRaw, iScale, vScale, negMode,
+      savedAt: Date.now()
+    };
+  }
+
+  function applyConfig(cfg){
+    limitRows = (cfg.limitRows||[]).map(r => Object.assign({}, r));
+    simRows = (cfg.simRows||[]).map(r => Object.assign({iMin:1, iMax:1, vMin:1, vMax:1}, r));
+    const ids = limitRows.concat(simRows).map(r => r.id).filter(Number.isFinite);
+    rowSeq = ids.length ? Math.max(...ids)+1 : 1;
+    renderLimitsTable(); renderSimTable();
+    if(cfg.updateInterval != null) $('updateInterval').value = cfg.updateInterval;
+    if(cfg.noiseAmt != null) $('noiseAmt').value = cfg.noiseAmt;
+    if(cfg.envWindow != null){ envWindow = cfg.envWindow; $('envWindow').value = envWindow; }
+    if(cfg.showRaw != null){ showRaw = cfg.showRaw; $('showRawChk').checked = showRaw; }
+    if(cfg.iScale > 0){ iScale = cfg.iScale; $('scaleI').value = iScale; }
+    if(cfg.vScale > 0){ vScale = cfg.vScale; $('scaleV').value = vScale; }
+    if(cfg.negMode){ negMode = cfg.negMode; $('negMode').value = negMode; }
+  }
+
+  $('saveSettingsBtn').addEventListener('click', async function(){
+    const status = $('settingsStatus');
+    status.textContent = 'Saving…';
+    const cfg = collectConfig();
+    const where = await saveConfig(cfg);
+    if(where === 'none'){ status.textContent = 'Could not save settings — storage unavailable in this browser.'; return; }
+    const time = new Date(cfg.savedAt).toLocaleTimeString();
+    status.textContent = where === 'cloud' ? `Saved control panel settings at ${time}.`
+                                           : `Saved control panel settings at ${time} (stored locally in this browser).`;
+  });
+  $('clearSettingsBtn').addEventListener('click', async function(){
+    await clearConfig();
+    applyDefaultRows();
+    rebuildScaled();
+    if(running) evaluateAlarms(false);
+    render();
+    $('settingsStatus').textContent = 'Cleared saved settings — reverted to defaults.';
+  });
+
+  /* ================= zoom / pan (shared by all charts) ================= */
+  function applyViewport(){
+    const full = view.fullMax - view.fullMin;
+    const width = full * (view.zoomPct/100);
+    const maxPan = Math.max(0, full - width);
+    const left = view.fullMin + maxPan * (view.panPct/100);
+    view.xMin = left; view.xMax = left + width;
+  }
+  function resetView(){
+    view.zoomPct = 100; view.panPct = 0;
+    $('zoomSlider').value = 100; $('panSlider').value = 0; $('zoomVal').textContent = '100%';
+    applyViewport();
+  }
+  $('zoomSlider').addEventListener('input', function(){
+    view.zoomPct = parseFloat(this.value);
+    $('zoomVal').textContent = Math.round(view.zoomPct)+'%';
+    applyViewport(); render();
+  });
+  $('panSlider').addEventListener('input', function(){
+    view.panPct = parseFloat(this.value); applyViewport(); render();
+  });
+  function nudgePan(d){
+    const s = $('panSlider');
+    s.value = Math.max(0, Math.min(100, parseFloat(s.value)+d));
+    view.panPct = parseFloat(s.value); applyViewport(); render();
+  }
+  $('panLeft').addEventListener('click', () => nudgePan(-5));
+  $('panRight').addEventListener('click', () => nudgePan(5));
+  $('zoomResetBtn').addEventListener('click', () => { resetView(); render(); });
+
+  $('envWindow').addEventListener('input', function(){
+    const v = parseInt(this.value);
+    if(!Number.isFinite(v) || v < 1) return;
+    envWindow = v;
+    recomputeDerived();
+    if(running) evaluateAlarms(false);
+    render();
+  });
+  $('showRawChk').addEventListener('change', function(){ showRaw = this.checked; render(); });
+
+  /* ================= axes ================= */
+  function niceStep(raw){
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw/p;
+    return (f<=1 ? 1 : f<=2 ? 2 : f<=5 ? 5 : 10) * p;
+  }
+  function niceAxis(lo, hi, target, zeroFloor){
+    if(!Number.isFinite(lo) || !Number.isFinite(hi)){ lo = 0; hi = 1; }
+    if(!(hi > lo)) hi = lo + 1;
+    const span = hi - lo;
+    if(!zeroFloor) lo -= span*0.06;
+    hi += span*0.08;
+    const step = niceStep((hi-lo)/target);
+    lo = zeroFloor ? 0 : Math.floor(lo/step + 1e-9)*step;
+    hi = Math.ceil(hi/step - 1e-9)*step;
+    const ticks = [];
+    for(let v=lo; v<=hi+step*0.001; v+=step) ticks.push(+v.toFixed(12));
+    return {lo, hi, step, ticks};
+  }
+  function fmtTick(v, step){
+    const dec = Math.min(6, Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)));
+    return v.toFixed(dec);
+  }
+
+  function powerAxis(){
+    let hi = arrMax(posPeakP), lo = 0;
+    limitRows.forEach(r => { if(r.max > hi) hi = r.max; if(r.min < lo) lo = r.min; });
+    return niceAxis(lo, hi, 6, lo >= 0);
+  }
+  function envAxis(pos, neg){
+    const lo = arrMin(neg), hi = arrMax(pos);
+    return niceAxis(lo, hi, 4, lo >= 0);
+  }
+  function impedanceAxis(){
+    let lo = Infinity, hi = -Infinity;
+    for(let k=0;k<zImp.length;k++){ const z = zImp[k]; if(Number.isFinite(z)){ if(z<lo) lo=z; if(z>hi) hi=z; } }
+    return niceAxis(lo, hi, 4, false);
+  }
+
+  /* ================= alarm logic (power, positive-peak trace) ================= */
+  // One alarm per bound per limit range per evaluation, using that range's worst sample.
+  function evaluateAlarms(log){
+    const found = [];
+    limitRows.forEach((r, idx) => {
+      let hiVal=-Infinity, hiT=null, loVal=Infinity, loT=null;
+      for(let k=0;k<baseTime.length;k++){
+        const t = baseTime[k];
+        if(t < r.start || t > r.end) continue;
+        const p = posPeakP[k];
+        if(p > hiVal){ hiVal = p; hiT = t; }
+        if(p < loVal){ loVal = p; loT = t; }
+      }
+      if(hiT !== null && hiVal > r.max) found.push({time:hiT, value:hiVal, limit:r.max, type:'HIGH', rangeId:idx+1});
+      if(loT !== null && loVal < r.min) found.push({time:loT, value:loVal, limit:r.min, type:'LOW',  rangeId:idx+1});
+    });
+    currentAlarms = found;
+    if(log && found.length){
+      const wall = new Date().toLocaleTimeString();
+      alarmLog = found.map(a => Object.assign({wall}, a)).concat(alarmLog).slice(0, 100);
+    }
+    updateAlarmUI(); updateLogUI();
+  }
+
+  function updateAlarmUI(){
+    const banner = $('alarmBanner'), tag = $('alarmTag'), msg = $('alarmMsg');
+    const lamp = $('lampAlarm'), lampTxt = $('lampAlarmTxt');
+    $('alarmCount').textContent = alarmLog.length;
+    if(!running){
+      banner.classList.remove('active');
+      tag.textContent = '● IDLE';
+      msg.textContent = 'Simulator stopped — power limits are checked while it is running.';
+      lamp.className = 'dot'; lampTxt.textContent = 'IDLE';
+    } else if(currentAlarms.length){
+      const a = currentAlarms[0];
+      const dir = a.type === 'HIGH' ? 'above max' : 'below min';
+      banner.classList.add('active');
+      tag.textContent = '● ALARM';
+      msg.textContent = `${currentAlarms.length} power violation(s) — ${dir} at t=${a.time.toFixed(4)}s, P=${a.value.toFixed(3)}W (limit ${a.limit.toFixed(3)}W), range #${a.rangeId}` +
+                        (currentAlarms.length > 1 ? ` (+${currentAlarms.length-1} more)` : '');
+      lamp.className = 'dot on-alarm'; lampTxt.textContent = 'ALARM';
+    } else {
+      banner.classList.remove('active');
+      tag.textContent = '● OK';
+      msg.textContent = 'Positive-peak power within control limits.';
+      lamp.className = 'dot on-ok'; lampTxt.textContent = 'NO ALARM';
+    }
+  }
+
+  function updateLogUI(){
+    const panel = $('logPanel');
+    if(!alarmLog.length){ panel.innerHTML = '<div class="log-empty">No violations recorded.</div>'; return; }
+    panel.innerHTML = alarmLog.map(a => `
+      <div class="log-row ${a.type==='HIGH'?'high':'low'}">
+        <span class="t">${a.wall}</span>
+        <span class="tag">${a.type}</span>
+        <span>t=${a.time.toFixed(4)}s&nbsp; P=${a.value.toFixed(3)}W&nbsp; limit=${a.limit.toFixed(3)}W&nbsp; range #${a.rangeId}</span>
+      </div>`).join('');
+  }
+
+  /* ================= simulation tick ================= */
+  function findRange(rows, t){ return rows.find(r => t >= r.start && t <= r.end); }
+
+  function tick(){
+    if(!baseTime.length) return;
+    const noise = parseFloat($('noiseAmt').value) || 0;
+    const factors = {};
+    simRows.forEach(r => { factors[r.id] = {i: rnd(r.iMin, r.iMax), v: rnd(r.vMin, r.vMax)}; });
+    const iFloor = 0.02*Math.max(arrMax(baseI), 1e-9);
+    const vFloor = 0.02*Math.max(arrMax(baseV), 1e-9);
+
+    const n = baseTime.length;
+    const nI = new Array(n), nV = new Array(n);
+    for(let k=0;k<n;k++){
+      const sr = findRange(simRows, baseTime[k]);
+      let i = baseI[k], v = baseV[k];
+      if(sr){ i *= factors[sr.id].i; v *= factors[sr.id].v; }
+      i += (Math.random()-0.5)*2*noise*Math.max(Math.abs(baseI[k]), iFloor);
+      v += (Math.random()-0.5)*2*noise*Math.max(Math.abs(baseV[k]), vFloor);
+      nI[k] = i; nV[k] = v;
+    }
+    liveI = nI; liveV = nV;
+    recomputeDerived();
+    evaluateAlarms(true);
+    render();
+    $('lampClock').textContent = new Date().toLocaleTimeString();
+  }
+
+  function scheduleInterval(){
+    clearInterval(intervalHandle);
+    const ms = Math.max(50, parseFloat($('updateInterval').value) || 500);
+    intervalHandle = setInterval(tick, ms);
+  }
+  function startSim(){
+    if(running || !baseTime.length) return;
+    running = true;
+    $('startBtn').disabled = true; $('stopBtn').disabled = false;
+    $('lampRun').className = 'dot on-run'; $('lampRunTxt').textContent = 'RUNNING';
+    scheduleInterval();
+    tick();
+  }
+  function stopSim(){
+    running = false;
+    clearInterval(intervalHandle); intervalHandle = null;
+    $('startBtn').disabled = false; $('stopBtn').disabled = true;
+    $('lampRun').className = 'dot'; $('lampRunTxt').textContent = 'STOPPED';
+    currentAlarms = [];
+    updateAlarmUI();
+  }
+  $('startBtn').addEventListener('click', startSim);
+  $('stopBtn').addEventListener('click', stopSim);
+  $('resetBtn').addEventListener('click', function(){
+    stopSim();
+    liveI = baseI.slice(); liveV = baseV.slice();
+    recomputeDerived();
+    alarmLog = []; currentAlarms = [];
+    updateAlarmUI(); updateLogUI(); render();
+  });
+  $('updateInterval').addEventListener('change', function(){ if(running) scheduleInterval(); });
+
+  /* ================= rendering ================= */
+  function strokeSeries(ctx, X, Y, arr, color, width, opts){
+    opts = opts || {};
+    const span = view.xMax - view.xMin, margin = span*0.01;
+    ctx.save();
+    ctx.lineWidth = width; ctx.strokeStyle = color; ctx.lineJoin = 'round';
+    if(opts.alpha != null) ctx.globalAlpha = opts.alpha;
+    if(opts.dash) ctx.setLineDash(opts.dash);
+    if(opts.glow){ ctx.shadowColor = opts.glow; ctx.shadowBlur = 4; }
+    ctx.beginPath();
+    let pen = false;
+    for(let k=0;k<baseTime.length;k++){
+      const t = baseTime[k];
+      if(t < view.xMin - margin || t > view.xMax + margin){ pen = false; continue; }
+      const v = arr[k];
+      if(!Number.isFinite(v)){ pen = false; continue; }
+      const x = X(t), y = Y(v);
+      if(!pen){ ctx.moveTo(x,y); pen = true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPowerData(ctx, X, Y){
+    // limit ranges
+    limitRows.forEach((r, idx) => {
+      if(r.end < view.xMin || r.start > view.xMax) return;
+      const x1 = X(Math.max(r.start, view.xMin)), x2 = X(Math.min(r.end, view.xMax));
+      const yMax = Y(r.max), yMin = Y(r.min);
+      ctx.fillStyle = 'rgba(255,77,79,0.06)';
+      ctx.fillRect(x1, 0, x2-x1, yMax);
+      ctx.fillRect(x1, yMin, x2-x1, 10000);
+      ctx.strokeStyle = '#ff4d4f'; ctx.lineWidth = 1; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.moveTo(x1,yMax); ctx.lineTo(x2,yMax); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x1,yMin); ctx.lineTo(x2,yMin); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ff8f90'; ctx.font = '9px IBM Plex Mono, monospace';
+      ctx.fillText('#'+(idx+1), x1+3, yMax-3);
+    });
+    if(showRaw) strokeSeries(ctx, X, Y, liveP, '#9aa7b5', 0.8);
+    strokeSeries(ctx, X, Y, posPeakP, '#ffb020', 1.8, {glow:'rgba(255,176,32,0.5)'});
+
+    // violation markers — same rule as evaluateAlarms (per limit range, own bounds)
+    ctx.fillStyle = '#ff4d4f';
+    limitRows.forEach(r => {
+      for(let k=0;k<baseTime.length;k++){
+        const t = baseTime[k];
+        if(t < r.start || t > r.end || t < view.xMin || t > view.xMax) continue;
+        const p = posPeakP[k];
+        if(p > r.max || p < r.min){ ctx.beginPath(); ctx.arc(X(t), Y(p), 2.5, 0, Math.PI*2); ctx.fill(); }
+      }
+    });
+  }
+
+  const charts = [
+    { id:'cvP', padL:60, padT:14, padB:26, xTicks:10, yLabel:'Power (W)', big:true,
+      axis: powerAxis,
+      draw: (ctx,X,Y) => drawPowerData(ctx,X,Y) },
+    { id:'cvV', padL:46, padT:8, padB:22, xTicks:4, yLabel:'', big:false,
+      axis: () => envAxis(posPeakV, negPeakV),
+      draw: (ctx,X,Y) => {
+        if(showRaw) strokeSeries(ctx,X,Y,liveV,'#9aa7b5',0.7);
+        strokeSeries(ctx,X,Y,posPeakV,'#b794f4',1.4);
+        strokeSeries(ctx,X,Y,negPeakV,'#b794f4',1.0,{alpha:0.55,dash:[4,3]});
+      } },
+    { id:'cvI', padL:50, padT:8, padB:22, xTicks:4, yLabel:'', big:false,
+      axis: () => envAxis(posPeakI, negPeakI),
+      draw: (ctx,X,Y) => {
+        if(showRaw) strokeSeries(ctx,X,Y,liveI,'#9aa7b5',0.7);
+        strokeSeries(ctx,X,Y,posPeakI,'#4fa8ff',1.4);
+        strokeSeries(ctx,X,Y,negPeakI,'#4fa8ff',1.0,{alpha:0.55,dash:[4,3]});
+      } },
+    { id:'cvZ', padL:46, padT:8, padB:22, xTicks:4, yLabel:'', big:false,
+      axis: impedanceAxis,
+      draw: (ctx,X,Y) => strokeSeries(ctx,X,Y,zImp,'#4fd1c5',1.4) }
+  ];
+  charts.forEach(ch => { ch.canvas = $(ch.id); ch.ctx = ch.canvas.getContext('2d'); ch.padR = 12; });
+
+  function sizeCanvas(ch){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = ch.canvas.getBoundingClientRect();
+    const w = Math.round(rect.width*dpr), h = Math.round(rect.height*dpr);
+    if(ch.canvas.width !== w || ch.canvas.height !== h){ ch.canvas.width = w; ch.canvas.height = h; }
+    ch.ctx.setTransform(dpr,0,0,dpr,0,0);
+    return rect;
+  }
+
+  function drawChart(ch){
+    const rect = sizeCanvas(ch);
+    const w = rect.width, h = rect.height;
+    if(!w || !h) return;
+    const ctx = ch.ctx;
+    const {padL, padR, padT, padB} = ch;
+    const ax = ch.axis();
+    const X = t => padL + (t - view.xMin)/(view.xMax - view.xMin)*(w - padL - padR);
+    const Y = v => padT + (1 - (v - ax.lo)/(ax.hi - ax.lo))*(h - padT - padB);
+
+    ctx.clearRect(0,0,w,h);
+    ctx.font = (ch.big ? '10px' : '9px') + ' IBM Plex Mono, monospace';
+
+    // grid + y labels
+    ctx.lineWidth = 1;
+    ax.ticks.forEach(v => {
+      const y = Y(v);
+      ctx.strokeStyle = '#1e2833';
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke();
+      ctx.fillStyle = '#54606e'; ctx.textAlign = 'right';
+      ctx.fillText(fmtTick(v, ax.step), padL-6, y+3);
+    });
+    // x grid + labels
+    ctx.textAlign = 'center';
+    for(let i=0;i<=ch.xTicks;i++){
+      const t = view.xMin + (view.xMax-view.xMin)*i/ch.xTicks;
+      const x = X(t);
+      ctx.strokeStyle = '#1e2833';
+      ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,h-padB); ctx.stroke();
+      ctx.fillStyle = '#54606e';
+      ctx.fillText(t.toFixed(4), x, h-padB+13);
+    }
+    ctx.textAlign = 'left';
+
+    // data, clipped to the plot area
+    ctx.save();
+    ctx.beginPath(); ctx.rect(padL, padT, w-padL-padR, h-padT-padB); ctx.clip();
+    if(baseTime.length) ch.draw(ctx, X, Y);
+    ctx.restore();
+
+    ctx.strokeStyle = '#26313d'; ctx.strokeRect(padL, padT, w-padL-padR, h-padT-padB);
+    if(ch.big){
+      ctx.fillStyle = '#7f8ea1';
+      ctx.fillText('Time (s)', w/2-20, h-4);
+      ctx.save(); ctx.translate(12, h/2+22); ctx.rotate(-Math.PI/2);
+      ctx.fillText(ch.yLabel, 0, 0); ctx.restore();
+    }
+  }
+
+  function render(){ charts.forEach(drawChart); }
+
+  /* wheel zoom + drag pan on every chart */
+  let drag = null;
+  charts.forEach(ch => {
+    ch.canvas.addEventListener('wheel', function(e){
+      e.preventDefault();
+      const zs = $('zoomSlider');
+      const z = Math.max(5, Math.min(100, parseFloat(zs.value) + (e.deltaY > 0 ? 5 : -5)));
+      zs.value = z; view.zoomPct = z;
+      $('zoomVal').textContent = Math.round(z)+'%';
+      applyViewport(); render();
+    }, {passive:false});
+    ch.canvas.addEventListener('mousedown', function(e){
+      drag = { x:e.clientX, left:view.xMin, plotW: Math.max(1, ch.canvas.clientWidth - ch.padL - ch.padR) };
+    });
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!drag) return;
+    const full = view.fullMax - view.fullMin;
+    const width = full*(view.zoomPct/100);
+    const maxPan = full - width;
+    if(maxPan <= 0) return;
+    const dt = -((e.clientX - drag.x)/drag.plotW)*(view.xMax - view.xMin);
+    const left = Math.max(view.fullMin, Math.min(view.fullMin + maxPan, drag.left + dt));
+    view.panPct = (left - view.fullMin)/maxPan*100;
+    $('panSlider').value = view.panPct;
+    applyViewport(); render();
+  });
+  window.addEventListener('mouseup', () => { drag = null; });
+
+  window.addEventListener('resize', render);
+  if(typeof ResizeObserver !== 'undefined'){
+    const ro = new ResizeObserver(() => render());
+    charts.forEach(ch => ro.observe(ch.canvas));
+  }
+
+  /* ================= init ================= */
+  async function init(){
+    applyDefaultRows();
+    useDefault('synthetic 1000-pt burst (default)');
+
+    const status = $('settingsStatus');
+    let raw = null;
+    try{ raw = await loadConfigRaw(); }catch(e){ raw = null; }
+    if(raw){
+      try{
+        const cfg = JSON.parse(raw);
+        applyConfig(cfg);
+        status.textContent = 'Auto-loaded saved control panel settings (saved ' + (cfg.savedAt ? new Date(cfg.savedAt).toLocaleString() : 'unknown time') + ').';
+      }catch(e){
+        applyDefaultRows();
+        status.textContent = 'Saved settings were unreadable — using defaults.';
+      }
+    } else {
+      status.textContent = 'No saved settings found — using default control panel values.';
+    }
+
+    rebuildScaled();      // pick up scales / negative-power mode / envelope window from settings
+    updateAlarmUI(); updateLogUI();
+    render();
+    setInterval(() => { $('lampClock').textContent = new Date().toLocaleTimeString(); }, 1000);
+  }
+  window.addEventListener('load', init);
+})();
+</script>
+</body>
+</html>
