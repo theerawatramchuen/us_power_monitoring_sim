@@ -1,4 +1,8 @@
-# US Power Monitoring Controller — UTAC AUTOMATION
+# US Power Monitoring Controller 
+<img width="1383" height="1553" alt="127 0 0 1_8080_" src="https://github.com/user-attachments/assets/2dc5c8ee-db4b-4325-83a9-e116dc1d8141" />
+<img width="1383" height="1609" alt="127 0 0 1_8080_ (1)" src="https://github.com/user-attachments/assets/f8228254-04bb-414b-b64f-76c38300d33c" />
+
+
 
 Application document · version 1.0.0
 
